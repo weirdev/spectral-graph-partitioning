@@ -3,20 +3,22 @@ use std::fmt;
 
 #[derive(Clone)]
 pub struct Matrix {
-    pub n: usize,
+    pub r: usize,
+    pub c: usize,
     elements: Vec<Vec<f64>>
 }
 
 impl Matrix {
-    pub fn zeros(n: usize) -> Matrix{
+    pub fn zeros(r: usize, c: usize) -> Matrix{
         Matrix {
-            n: n,
-            elements: vec![vec![0.0; n]; n]
+            r: r,
+            c: c,
+            elements: vec![vec![0.0; c]; r]
         }
     }
 
     pub fn diagonal(diagonals: Vec<f64>) -> Matrix {
-        let mut mat = Matrix::zeros(diagonals.len());
+        let mut mat = Matrix::zeros(diagonals.len(), diagonals.len());
         for i in 0..diagonals.len() {
             mat[i][i] = diagonals[i];
         }
@@ -24,18 +26,21 @@ impl Matrix {
     }
 
     pub fn transpose(&self) -> Matrix {
-        let mut mat = Matrix::zeros(self.n);
-        for i in 0..self.n {
-            for j in 0..self.n {
-                mat[i][j] = self[j][i];
+        let mut mat = Matrix::zeros(self.c, self.r);
+        for i in 0..self.r {
+            for j in 0..self.c {
+                mat[j][i] = self[i][j];
             }
         }
         mat
     }
 
-    pub fn powi(&self, p: usize) -> Matrix {
+    pub fn powi(&self, p: usize) -> Result<Matrix, &'static str> {
+        if self.r != self.c {
+            return Err("Matrix power operation must be performed on a square matrix")
+        }
         if p == 0 {
-            Matrix::diagonal(vec![1.0; self.n])
+            Ok(Matrix::diagonal(vec![1.0; self.r]))
         } else {
             let mut bin = binary_decomposition(p);
             bin.reverse();
@@ -46,7 +51,7 @@ impl Matrix {
                     prod = (&prod * self).unwrap();
                 }
             }
-            prod
+            Ok(prod)
         }
     }
 }
@@ -68,12 +73,12 @@ impl DiagonalMatrix {
         Matrix::diagonal(self.elements)
     }
 
-    pub fn left_mul_sq(&self, lhs: &Matrix) -> Result<Matrix, &'static str> {
-        if self.n != lhs.n {
-            return Err("Multiplication on matrices must be on matrices of same dimensions")
+    pub fn left_mul_sq(&self, lhs: &Matrix) -> Result<Matrix, String> {
+        if self.n != lhs.c {
+            return Err(format!("Incompatible dimensions ({}x{})*({2}x{2})  for matrix multiplications", lhs.r, lhs.c, self.n))
         }
-        let mut mat = Matrix::zeros(self.n);
-        for i in 0..self.n {
+        let mut mat = Matrix::zeros(lhs.r, self.n);
+        for i in 0..lhs.r {
             for j in 0..self.n {
                 mat[i][j] = lhs[i][j] * self.elements[j];
             }
@@ -81,13 +86,13 @@ impl DiagonalMatrix {
         Ok(mat)
     }
 
-    pub fn right_mul_sq(&self, rhs: &Matrix) -> Result<Matrix, &'static str> {
-        if self.n != rhs.n {
-            return Err("Multiplication on matrices must be on matrices of same dimensions")
+    pub fn right_mul_sq(&self, rhs: &Matrix) -> Result<Matrix, String> {
+        if self.n != rhs.r {
+            return Err(format!("Incompatible dimensions ({0}x{0})*({1}x{2})  for matrix multiplications", self.n, rhs.r, rhs.c))
         }
-        let mut mat = Matrix::zeros(self.n);
+        let mut mat = Matrix::zeros(self.n, rhs.c);
         for i in 0..self.n {
-            for j in 0..self.n {
+            for j in 0..rhs.c {
                 mat[i][j] = self.elements[i] * rhs[i][j];
             }
         }
@@ -119,12 +124,12 @@ impl<'a> ops::Sub for &'a Matrix {
     type Output = Result<Matrix, &'static str>;
 
     fn sub(self, other: &Matrix) -> Self::Output {
-        if self.n != other.n {
+        if self.r != other.r || self.c != other.c {
             return Err("Subtraction on matrices must be on matrices of same dimensions")
         }
-        let mut mat = Matrix::zeros(self.n);
-        for i in 0..self.n {
-            for j in 0..self.n {
+        let mut mat = Matrix::zeros(self.r, self.c);
+        for i in 0..self.r {
+            for j in 0..self.c {
                 mat[i][j] = self[i][j] - other[i][j];
             }
         }
@@ -133,17 +138,17 @@ impl<'a> ops::Sub for &'a Matrix {
 }
 
 impl<'a> ops::Mul for &'a Matrix {
-    type Output = Result<Matrix, &'static str>;
+    type Output = Result<Matrix, String>;
 
     fn mul(self, rhs: &Matrix) -> Self::Output {
-        if self.n != rhs.n {
-            return Err("Multiplication on matrices must be on matrices of same dimensions")
+        if self.c != rhs.r {
+            return Err(format!("Incompatible dimensions ({}x{})*({}x{})  for matrix multiplications", self.r, self.c, rhs.r, rhs.c))
         }
-        let mut mat = Matrix::zeros(self.n);
-        for i in 0..self.n {
-            for j in 0..self.n {
+        let mut mat = Matrix::zeros(self.r, rhs.c);
+        for i in 0..self.r {
+            for j in 0..rhs.c {
                 let mut sum = 0.0;
-                for x in 0..self.n {
+                for x in 0..self.c {
                     sum += self[i][x] * rhs[x][j];
                 }
                 mat[i][j] = sum;
@@ -182,13 +187,13 @@ impl<'a> IntoIterator for &'a mut Matrix {
 
 impl fmt::Display for Matrix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for r in 0..self.n-1 {
+        for r in 0..self.r-1 {
             for c in &self[r] {
                 write!(f, "{0: <5} ", c)?;
             }
             write!(f, "\n")?;
         }
-        for c in &self[self.n - 1] {
+        for c in &self[self.r - 1] {
             write!(f, "{: <5} ", c)?;
         }
         write!(f, "")

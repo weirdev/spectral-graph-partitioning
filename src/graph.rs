@@ -11,7 +11,7 @@ impl Graph {
     pub fn new(n: usize) -> Graph {
         Graph {
             nodes: n,
-            adj: Matrix::zeros(n)
+            adj: Matrix::zeros(n, n)
         }
     }
 
@@ -46,7 +46,6 @@ impl Graph {
     pub fn degree_norm(&self) -> Matrix {
         let mut k = self.degree_matrix();
         k.ip_powf(-0.5);
-        print!("{}", k.to_square());
         let mut d = self.degree_matrix();
         d.ip_powf(-0.5);
         d.left_mul_sq(&d.right_mul_sq(&self.adj).unwrap()).unwrap()
@@ -56,7 +55,7 @@ impl Graph {
         let w = self.degree_norm();
         let w_t = w.transpose();
         let p = ((k * self.nodes) as f64).ln() as usize;
-        let itr = (&w * &w_t).unwrap().powi(p);
+        let itr = (&w * &w_t).unwrap().powi(p).unwrap();
         (&itr * &w).unwrap()
         // TODO: multiply by S = nxk w/ gaussian elements
     }
