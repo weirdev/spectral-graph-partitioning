@@ -13,4 +13,5 @@ fn main() {
     println!("{}", g);
     println!("Laplacian:");
     println!("{}", g.laplacian());
+    println!("{}", g.degree_norm());
 }
