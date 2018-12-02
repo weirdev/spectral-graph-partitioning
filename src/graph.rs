@@ -56,8 +56,16 @@ impl Graph {
         let w_t = w.transpose();
         let p = ((k * self.nodes) as f64).ln() as usize;
         let itr = (&w * &w_t).unwrap().powi(p).unwrap();
-        (&itr * &w).unwrap()
-        // TODO: multiply by S = nxk w/ gaussian elements
+        // Multiply by S = nxk w/ gaussian elements
+        let s = Matrix::gaussian(self.nodes, k);
+
+        (&(&itr * &w).unwrap() * &s).unwrap()
+    }
+
+    pub fn qr_eigenvecs(&self) -> Vec<f64> {
+        let mut mat = self.adj.clone();
+        mat.qr_iter(5);
+        mat.extract_diagonal()
     }
 }
 
@@ -101,6 +109,22 @@ pub fn create_from_2d_points(x: Vec<f64>, y: Vec<f64>) -> Result<Graph, &'static
         }
     }
     Ok(g)
+}
+
+pub fn create_2fc_kconnections(fcsize: usize, k: usize) -> Graph {
+    let mut g = Graph::new(fcsize*2);
+    // FC subgraphs
+    for i in 0..fcsize-1 {
+        for j in i+1..fcsize {
+            g.add_edge(i, j, None);
+            g.add_edge(fcsize + i, fcsize + j, None);
+        }
+    }
+    // K connection between FC layers
+    for i in 0..k {
+        g.add_edge(i, fcsize + i, None);
+    }
+    g
 }
 
 fn variance(x: &Vec<f64>) -> Result<f64, &'static str> {

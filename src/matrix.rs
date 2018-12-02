@@ -1,5 +1,8 @@
 use std::ops;
 use std::fmt;
+use rand::prelude::*;
+use rand::distributions::StandardNormal;
+use std::cmp;
 
 #[derive(Clone)]
 pub struct Matrix {
@@ -9,7 +12,7 @@ pub struct Matrix {
 }
 
 impl Matrix {
-    pub fn zeros(r: usize, c: usize) -> Matrix{
+    pub fn zeros(r: usize, c: usize) -> Matrix {
         Matrix {
             r: r,
             c: c,
@@ -23,6 +26,74 @@ impl Matrix {
             mat[i][i] = diagonals[i];
         }
         mat
+    }
+
+    pub fn gaussian(r: usize, c: usize) -> Matrix {
+        let mut rng = rand::thread_rng();
+
+        let mut mat = Matrix::zeros(r, c);
+        for i in 0..r {
+            for j in 0..c {
+                mat[i][j] = rng.sample(StandardNormal);
+            }
+        }
+        mat
+    }
+
+    // Produce a matric from v*v.transpose()
+    pub fn from_vec(v: &Vec<f64>) -> Matrix {
+        let mut mat = Matrix::zeros(v.len(), v.len());
+        for i in 0..v.len() {
+            for j in 0..v.len() {
+                mat[i][j] = v[i] * v[j];
+            }
+        }
+        mat
+    }
+
+    pub fn identity(n: usize) -> Matrix {
+        let mut mat = Matrix::zeros(n, n);
+        for i in 0..n {
+            mat[i][i] = 1.0;
+        }
+        mat
+    }
+
+    pub fn from_elements(elements: Vec<Vec<f64>>) -> Result<Matrix, &'static str> {
+        let r = elements.len();
+        let mut c = 0;
+        if r > 0 {
+            c = elements[0].len();
+            for i in 1..r {
+                if elements[i].len() != c {
+                    return Err("Matrix must be rectangular");
+                }
+            }
+        }
+        Ok(Matrix {
+            r: r,
+            c: c,
+            elements: elements
+        })
+    }
+
+    // Zero indexed, inclusive start, non-inclusive end
+    pub fn section(&self, rows: (usize, usize), columns: (usize, usize)) -> Matrix {
+        let mut mat = Matrix::zeros(rows.1 - rows.0, columns.1 - columns.0);
+        for i in 0..mat.r {
+            for j in 0..mat.c {
+                mat[i][j] = self[rows.0 + i][columns.0 + j];
+            }
+        }
+        mat
+    }
+
+    pub fn substitute(&mut self, sub: Matrix, row: usize, column: usize) {
+        for i in 0..sub.r {
+            for j in 0..sub.c {
+                self[row + i][column + j] = sub[i][j];
+            }
+        }
     }
 
     pub fn transpose(&self) -> Matrix {
@@ -53,6 +124,85 @@ impl Matrix {
             }
             Ok(prod)
         }
+    }
+
+    pub fn scale(&mut self, k: f64) {
+        for i in 0..self.r {
+            for j in 0..self.c {
+                self[i][j] *= k;
+            }
+        }
+    }
+
+    pub fn qr_factorize(&mut self) -> Vec<f64> {
+        let mut bs: Vec<f64> = Vec::new();
+        for j in 0..self.c {
+            let mut h: Vec<f64> = Vec::new();
+            for i in j..self.r {
+                h.push(self[i][j]);
+            }
+            let (v, b) = householder_vec(h);
+            //println!("v= {:?}", v);
+            bs.push(b);
+            let mut rep = Matrix::from_vec(&v);
+            rep.scale(b);
+            rep = (&Matrix::identity(self.r-j) - &rep).unwrap();
+            rep = (&rep * &self.section((j, self.r), (j, self.c))).unwrap();
+            //println!("Rep\n{}", rep);
+            self.substitute(rep, j, j);
+            if j < self.r - 1 {
+                for i in 0..self.r-j-1 {
+                    self[j+1+i][j] = v[1+i];
+                }
+            }
+        }
+        //println!("{}", self);
+        bs
+    }
+
+    fn rq_from_qr(&mut self, b: Vec<f64>) {
+        if self.r != self.c {
+            panic!("rq_from_qr is not yet implemented for non square matrices")
+        }
+        // Find Q by backwards accumulation
+        let mut q = Matrix::identity(self.c);
+        for bj in 0..self.c {
+            let j = self.c - 1 - bj;
+            let mut v = vec![0.0; self.c - j];
+            v[0] = 1.0;
+            for i in 1..v.len() {
+                v[i] = self[j+i][j];
+            }
+            let mut rep = Matrix::from_vec(&v);
+            rep.scale(b[j]);
+            rep = (&Matrix::identity(self.c - j) - &rep).expect("Subtraction in rq_from_qr");
+            let prod = (&rep * &q.section((j, self.c), (j, self.c))).expect("Matrix product iteration in rq_from_qr");
+            q.substitute(prod, j, j);
+        }
+
+        let mut r = Matrix::zeros(self.c, self.c);
+        for i in 0..self.r {
+            for j in i..self.c {
+                r[i][j] = self[i][j];
+            }
+        }
+        let m = (&r * &q).expect("Failed R*Q");
+        *self = m;
+    }
+
+    pub fn qr_iter(&mut self, k: usize) {
+        for _ in 0..k {
+            let b = self.qr_factorize();
+            self.rq_from_qr(b);
+        }
+    }
+
+    pub fn extract_diagonal(self) -> Vec<f64> {
+        let mut d: Vec<f64> = Vec::new();
+        for i in 0..cmp::min(self.r, self.c) {
+            d.push(self[i][i]);
+        }
+        d
     }
 }
 
@@ -212,4 +362,29 @@ fn binary_decomposition(mut x: usize) -> Vec<bool> {
         x /= 2;
     }
     bin
+}
+
+pub fn householder_vec(x: Vec<f64>) -> (Vec<f64>, f64) {
+    let mut s = 0.0;
+    for i in 1..x.len() {
+        s += x[i] * x[i];
+    }
+    let mut v = x.clone();
+    v[0] = 1.0;
+    if s == 0.0 {
+        (v, 0.0)
+    } else {
+        let u = (x[0].powi(2) + s).sqrt();
+        if x[0] <= 0.0 {
+            v[0] = x[0] - u;
+        } else {
+            v[0] = -s / (x[0] + u);
+        }
+        let b = 2.0 * v[0].powi(2) / (s + v[0].powi(2));
+        let vl = v.len();
+        for i in 0..vl {
+            v[vl - 1 - i] /= v[0];
+        }
+        (v, b)
+    }
 }
