@@ -61,12 +61,6 @@ impl Graph {
 
         (&(&itr * &w).unwrap() * &s).unwrap()
     }
-
-    pub fn qr_eigenvecs(&self) -> Vec<f64> {
-        let mut mat = self.adj.clone();
-        mat.qr_iter(5);
-        mat.extract_diagonal()
-    }
 }
 
 impl fmt::Display for Graph {

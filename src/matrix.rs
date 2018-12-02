@@ -88,6 +88,14 @@ impl Matrix {
         mat
     }
 
+    pub fn extract_diagonal(&self) -> Vec<f64> {
+        let mut d: Vec<f64> = Vec::new();
+        for i in 0..cmp::min(self.r, self.c) {
+            d.push(self[i][i]);
+        }
+        d
+    }
+
     pub fn substitute(&mut self, sub: Matrix, row: usize, column: usize) {
         for i in 0..sub.r {
             for j in 0..sub.c {
@@ -160,7 +168,8 @@ impl Matrix {
         bs
     }
 
-    fn rq_from_qr(&mut self, b: Vec<f64>) {
+    // Computes R*Q in place and returns Q
+    fn rq_from_qr(&mut self, b: Vec<f64>) -> Matrix {
         if self.r != self.c {
             panic!("rq_from_qr is not yet implemented for non square matrices")
         }
@@ -188,21 +197,17 @@ impl Matrix {
         }
         let m = (&r * &q).expect("Failed R*Q");
         *self = m;
+        q
     }
 
-    pub fn qr_iter(&mut self, k: usize) {
+    // Returns eigenvalues and matrix of eigenvectors
+    pub fn qr_iter(&mut self, k: usize) -> (Vec<f64>, Matrix) {
+        let mut q = Matrix::identity(self.r);
         for _ in 0..k {
             let b = self.qr_factorize();
-            self.rq_from_qr(b);
+            q = (&q * &self.rq_from_qr(b)).expect("Failed multiplying Q1**Qn=Q");
         }
-    }
-
-    pub fn extract_diagonal(self) -> Vec<f64> {
-        let mut d: Vec<f64> = Vec::new();
-        for i in 0..cmp::min(self.r, self.c) {
-            d.push(self[i][i]);
-        }
-        d
+        (self.extract_diagonal(), q)
     }
 }
 

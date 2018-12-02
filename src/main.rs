@@ -20,5 +20,7 @@ fn main() {
     println!("{}", g);
     //println!("{}", g.laplacian());
     //println!("{}", g.approx_k_eigenvecs(2));
-    println!("QR Algorithm\n{:?}", g.qr_eigenvecs());
+    let mut adj = g.adj.clone();
+    let (eigenvals, eigenvecs) = adj.qr_iter(3);
+    println!("QR Algorithm\n{}\n{:?}\n{}", adj, eigenvals, eigenvecs);
 }
