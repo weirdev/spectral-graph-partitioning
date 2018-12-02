@@ -1,5 +1,13 @@
 use rand::prelude::*;
 
+pub fn one_d_kmeans(x: Vec<f64>, k:usize, iters: usize) -> Vec<usize> {
+    let mut multid_form: Vec<Vec<f64>> = Vec::new();
+    for e in x {
+        multid_form.push(vec![e]);
+    }
+    nd_kmeans(multid_form, k, iters)
+}
+
 pub fn nd_kmeans(mut x: Vec<Vec<f64>>, k: usize, iters: usize) -> Vec<usize> {
     let dimensions = x[0].len();
     let mut rng = rand::thread_rng();
