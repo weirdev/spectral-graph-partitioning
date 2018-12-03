@@ -1,13 +1,13 @@
 extern crate rand;
 
-use rand::prelude::*;
-
 use std::env;
 use std::cmp::Ordering;
 
 mod graph;
 mod matrix;
 mod cluster;
+
+use matrix::Matrix;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -24,10 +24,13 @@ fn main() {
     //println!("{}", g.laplacian());
     //println!("{}", g.approx_k_eigenvecs(2));
     //let mut adj = g.adj.clone();
-    let mut lap = g.degree_normed_adj();
-    let (eigenvals, eigenvecs) = lap.qr_iter(3);
+    //let mut w = g.degree_normed_adj();
+    let y = g.approx_k_eigenvecs(2);
+    println!("Approx spectra\n{}", y);
+    //let (eigenvals, eigenvecs) = lap.qr_iter(3);
     //println!("QR Algorithm\n{}\n{:?}\n{}", lap, eigenvals, eigenvecs);
-    let clustered = spectral_cluster(eigenvals, eigenvecs);
+    //let clustered = spectral_cluster(eigenvals, eigenvecs);
+    let clustered = approx_spectral_cluster(y);
     println!("Clustered\n{:?}", clustered);
 }
 
@@ -38,4 +41,8 @@ pub fn spectral_cluster(eigenvals: Vec<f64>, eigenvecs: matrix::Matrix) -> Vec<u
     //println!("Second largest eigenvector\n{:?}", eigenvecs.extract_column(evi[evi.len()-2].0));
     // Cluster on second largest eigenvalue
     cluster::one_d_kmeans(eigenvecs.extract_column(evi[evi.len()-2].0), 2, 7)
+}
+
+pub fn approx_spectral_cluster(spectra: matrix::Matrix) -> Vec<usize> {
+    cluster::nd_kmeans(spectra, 2, 7)
 }

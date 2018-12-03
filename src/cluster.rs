@@ -1,20 +1,22 @@
 use rand::prelude::*;
 use std::f64;
 
+use matrix::Matrix;
+
 pub fn one_d_kmeans(x: Vec<f64>, k:usize, iters: usize) -> Vec<usize> {
     let mut multid_form: Vec<Vec<f64>> = Vec::new();
     for e in x {
         multid_form.push(vec![e]);
     }
-    nd_kmeans(multid_form, k, iters)
+    nd_kmeans(Matrix::from_elements(multid_form).unwrap(), k, iters)
 }
 
-pub fn nd_kmeans(x: Vec<Vec<f64>>, k: usize, iters: usize) -> Vec<usize> {
+pub fn nd_kmeans(x: Matrix, k: usize, iters: usize) -> Vec<usize> {
     let dimensions = x[0].len();
     let mut rng = rand::thread_rng();
     let mut kcenters: Vec<usize> = Vec::new();
     while kcenters.len() < k {
-        let newc = rng.gen_range(0, x.len());
+        let newc = rng.gen_range(0, x.r);
         if !kcenters.contains(&newc) {
             kcenters.push(newc);
         }
@@ -28,17 +30,17 @@ pub fn nd_kmeans(x: Vec<Vec<f64>>, k: usize, iters: usize) -> Vec<usize> {
         }
         centroids.push(newcentroid);
     }
-    let mut centroid_assignments: Vec<usize> = vec![0; x.len()];
-    let mut centroid_dists = vec![0.0; x.len()];
+    let mut centroid_assignments: Vec<usize> = vec![0; x.r];
+    let mut centroid_dists = vec![0.0; x.r];
     let mut points_per_cluster = vec![0; centroids.len()];
     let mut next_centroids = vec![vec![0.0; dimensions]; k];
     
-    points_per_cluster[0] = x.len(); // All points initially in cluster 0
+    points_per_cluster[0] = x.r; // All points initially in cluster 0
     for m in 1..centroids.len() {
         points_per_cluster[m] = 0;
     }
     for _ in 0..iters {
-        for j in 0..x.len() {
+        for j in 0..x.r {
             centroid_dists[j] = f64::INFINITY;
             for m in 0..centroids.len() {
                 let mut new_dist = 0.0;

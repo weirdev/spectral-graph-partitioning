@@ -57,7 +57,8 @@ impl Graph {
         // Multiply by S = nxk w/ gaussian elements
         let s = Matrix::gaussian(self.nodes, k);
 
-        (&(&itr * &w).unwrap() * &s).unwrap()
+        let mut b = (&(&itr * &w).unwrap() * &s).unwrap();
+        b.compute_svd()
     }
 }
 

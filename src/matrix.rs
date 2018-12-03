@@ -158,13 +158,11 @@ impl Matrix {
                 h.push(self[i][j]);
             }
             let (v, b) = householder_vec(h);
-            //println!("v= {:?}", v);
             bs.push(b);
             let mut rep = Matrix::from_vec(&v);
             rep.scale(b);
             rep = (&Matrix::identity(self.r-j) - &rep).unwrap();
             rep = (&rep * &self.section((j, self.r), (j, self.c))).unwrap();
-            //println!("Rep\n{}", rep);
             self.substitute(rep, j, j);
             if j < self.r - 1 {
                 for i in 0..self.r-j-1 {
@@ -172,7 +170,6 @@ impl Matrix {
                 }
             }
         }
-        //println!("{}", self);
         bs
     }
 
@@ -216,6 +213,73 @@ impl Matrix {
             q = (&q * &self.rq_from_qr(b)).expect("Failed multiplying Q1**Qn=Q");
         }
         (self.extract_diagonal(), q)
+    }
+
+    pub fn householder_bidiagonalize(&mut self) -> Vec<f64> {
+        let mut bs: Vec<f64> = Vec::new();
+        for j in 0..self.c {
+            let mut h: Vec<f64> = Vec::new();
+            for i in j..self.r {
+                h.push(self[i][j]);
+            }
+            let (v, b) = householder_vec(h);
+            bs.push(b);
+            let mut rep = Matrix::from_vec(&v);
+            rep.scale(b);
+            rep = (&Matrix::identity(self.r-j) - &rep).unwrap();
+            rep = (&rep * &self.section((j, self.r), (j, self.c))).unwrap();
+            self.substitute(rep, j, j);
+            for i in 0..self.r-j-1 {
+                self[j+1+i][j] = v[1+i];
+            }
+            if j <= self.c - 2 {
+                h = Vec::new();
+                for k in j+1..self.c {
+                    h.push(self[j][k]);
+                }
+                let (v, b) = householder_vec(h);
+                let mut rep = Matrix::from_vec(&v);
+                rep.scale(b);
+                rep = (&Matrix::identity(self.c-j-1) - &rep).unwrap();
+                rep = (&self.section((j, self.r), (j+1, self.c)) * &rep).unwrap();
+                self.substitute(rep, j, j+1);
+                for k in 0..self.c-j-2 {
+                    self[j][j+2+k] = v[1+k];
+                }
+            }
+        }
+        bs
+    }
+
+    pub fn compute_svd(&mut self) -> Matrix {
+        let b = self.householder_bidiagonalize();
+        // Find U by backwards accumulation
+        let mut u = Matrix::identity(self.r);
+        for bj in 0..self.c {
+            let j = self.c - 1 - bj;
+            let mut v = vec![0.0; self.r - j];
+            v[0] = 1.0;
+            for i in 1..v.len() {
+                v[i] = self[j+i][j];
+            }
+            let mut rep = Matrix::from_vec(&v);
+            rep.scale(b[j]);
+            rep = (&Matrix::identity(self.r - j) - &rep).expect("Subtraction in rq_from_qr");
+            let prod = (&rep * &u.section((j, self.r), (j, self.r))).expect("Matrix product iteration in rq_from_qr");
+            u.substitute(prod, j, j);
+        }
+
+        let mut b_sq = Matrix::zeros(self.c, self.c);
+        for i in 0..self.c {
+            b_sq[i][i] = self[i][i];
+            if i < self.c - 1 {
+                b_sq[i][i+1] = self[i][i+1];
+            }
+        }
+        let (_, u_upper) = b_sq.qr_iter(3);
+        let mut y = Matrix::zeros(self.r, self.c);
+        y.substitute(u_upper, 0, 0);
+        (&u * &y).unwrap()
     }
 }
 
@@ -400,4 +464,52 @@ pub fn householder_vec(x: Vec<f64>) -> (Vec<f64>, f64) {
         }
         (v, b)
     }
+}
+
+pub fn golub_kahan_svd_iteration(d: Vec<f64>, f: Vec<f64>) {
+    // Check for 0's along diagonal and superdiagonal to break into subproblems
+    // Zeros along diagonal are defined as ocurring when abs(d) < 0.000_001
+    // TODO: this is an arbitrary choice of smallness, redefine to be consonant
+    //      with machine precision * some matrix norm (of B)
+    // Zeros along superdiagonal are defined as occurring when abs(f_i) < 0.000_000_1 * (abs(d_i) + abs(d_i+1))
+    // Zeros along diagonal cause superdiagonal to be automatically zeroed
+    let mut d_left: Vec<f64> = Vec::new(); // Diagonal
+    let mut f_left: Vec<f64> = Vec::new(); // Superdiagonal
+    let mut d_right: Vec<f64> = Vec::new(); // Diagonal
+    let mut f_right: Vec<f64> = Vec::new(); // Superdiagonal
+
+    let mut coupled = false;
+    for i in 0..d.len() {
+        if !coupled {
+            if d[i].abs() < 0.000_001 {
+                f_left.pop(); // Zero column so we have i-1 and i-2 items in d and f respectively
+                coupled = true;
+            } else {
+                let mut nearzero = 0.000_000_1 * d[i].abs();
+                if i < d.len() - 1 {
+                    nearzero *= d[i+1];
+                }
+                if f[i].abs() < nearzero {
+                    coupled = true;
+                    d_right.push(d[i]);
+                    if i < d.len()-1 {
+                        f_right.push(f[i]);
+                    }
+                }
+                d_left.push(d[i]);
+                if i < d.len()-1 {
+                    f_left.push(f[i]);
+                }
+            }
+        } else {
+            d_right.push(d[i]);
+            if i < d.len()-1 {
+                f_right.push(f[i]);
+            }
+        }
+    }
+    if d_left.len() != d.len() {
+        golub_kahan_svd_iteration(d_right, f_right);
+    }
+
 }
