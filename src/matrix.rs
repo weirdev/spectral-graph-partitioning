@@ -96,6 +96,14 @@ impl Matrix {
         d
     }
 
+    pub fn extract_column(&self, c: usize) -> Vec<f64> {
+        let mut col: Vec<f64> = Vec::new();
+        for i in 0..self.r {
+            col.push(self[i][c]);
+        }
+        col
+    }
+
     pub fn substitute(&mut self, sub: Matrix, row: usize, column: usize) {
         for i in 0..sub.r {
             for j in 0..sub.c {

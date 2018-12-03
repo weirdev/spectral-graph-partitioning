@@ -1,4 +1,5 @@
 use rand::prelude::*;
+use std::f64;
 
 pub fn one_d_kmeans(x: Vec<f64>, k:usize, iters: usize) -> Vec<usize> {
     let mut multid_form: Vec<Vec<f64>> = Vec::new();
@@ -8,15 +9,24 @@ pub fn one_d_kmeans(x: Vec<f64>, k:usize, iters: usize) -> Vec<usize> {
     nd_kmeans(multid_form, k, iters)
 }
 
-pub fn nd_kmeans(mut x: Vec<Vec<f64>>, k: usize, iters: usize) -> Vec<usize> {
+pub fn nd_kmeans(x: Vec<Vec<f64>>, k: usize, iters: usize) -> Vec<usize> {
     let dimensions = x[0].len();
     let mut rng = rand::thread_rng();
-    x.partial_shuffle(&mut rng, k);
-    let mut centroids = vec![Vec::new() as Vec<f64>; k];
-    for i in 0..k {
-        for j in 0..dimensions {
-            centroids[i].push(x[i][j]);
+    let mut kcenters: Vec<usize> = Vec::new();
+    while kcenters.len() < k {
+        let newc = rng.gen_range(0, x.len());
+        if !kcenters.contains(&newc) {
+            kcenters.push(newc);
         }
+    }
+    
+    let mut centroids: Vec<Vec<f64>> = Vec::new();
+    for i in kcenters {
+        let mut newcentroid: Vec<f64> = Vec::new();
+        for s in 0..dimensions {
+            newcentroid.push(x[i][s]);
+        }
+        centroids.push(newcentroid);
     }
     let mut centroid_assignments: Vec<usize> = vec![0; x.len()];
     let mut centroid_dists = vec![0.0; x.len()];
@@ -29,6 +39,7 @@ pub fn nd_kmeans(mut x: Vec<Vec<f64>>, k: usize, iters: usize) -> Vec<usize> {
     }
     for _ in 0..iters {
         for j in 0..x.len() {
+            centroid_dists[j] = f64::INFINITY;
             for m in 0..centroids.len() {
                 let mut new_dist = 0.0;
                 for s in 0..dimensions {
@@ -46,9 +57,11 @@ pub fn nd_kmeans(mut x: Vec<Vec<f64>>, k: usize, iters: usize) -> Vec<usize> {
             }
         }
         for m in 0..centroids.len() {
-            for q in 0..dimensions {
-                centroids[m][q] = next_centroids[m][q] / points_per_cluster[m] as f64; // Average the sum of positions
-                next_centroids[m][q] = 0.0;
+            if points_per_cluster[m] > 0 {
+                for q in 0..dimensions {
+                    centroids[m][q] = next_centroids[m][q] / points_per_cluster[m] as f64; // Average the sum of positions
+                    next_centroids[m][q] = 0.0;
+                }
             }
         }
     }

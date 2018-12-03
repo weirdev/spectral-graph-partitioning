@@ -43,16 +43,14 @@ impl Graph {
         (&self.degree_matrix().to_square() - &self.adj).expect("Failed to calculate laplacian")
     }
 
-    pub fn degree_norm(&self) -> Matrix {
-        let mut k = self.degree_matrix();
-        k.ip_powf(-0.5);
+    pub fn degree_normed_adj(&self) -> Matrix {
         let mut d = self.degree_matrix();
         d.ip_powf(-0.5);
         d.left_mul_sq(&d.right_mul_sq(&self.adj).unwrap()).unwrap()
     }
 
     pub fn approx_k_eigenvecs(&self, k: usize) -> Matrix {
-        let w = self.degree_norm();
+        let w = self.degree_normed_adj();
         let w_t = w.transpose();
         let p = ((k * self.nodes) as f64).ln() as usize;
         let itr = (&w * &w_t).unwrap().powi(p).unwrap();
